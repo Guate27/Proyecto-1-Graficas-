@@ -31,7 +31,7 @@ fn cell_color(cell: char) -> u32 {
     match cell {
         '+' => 0x00AAFF,
         '-' => 0xFF5555,
-        '|' => 0xFF5555,
+        '|' => 0xFFB000,
         'g' | 'G' => 0x00FF00,
         _ => 0xFFDDDD,
     }
