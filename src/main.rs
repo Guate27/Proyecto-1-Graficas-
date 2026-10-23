@@ -1,8 +1,10 @@
 mod caster;
 mod enemy;
+mod fps;
 mod framebuffer;
 mod maze;
 mod player;
+mod text;
 mod textures;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
@@ -11,9 +13,11 @@ use std::time::Duration;
 
 use crate::caster::{cast_ray, Face};
 use crate::enemy::Enemy;
+use crate::fps::FpsCounter;
 use crate::framebuffer::Framebuffer;
 use crate::maze::{load_maze, Maze};
 use crate::player::{process_events, Player};
+use crate::text::{draw_text, fill_rect, text_height, text_width};
 use crate::textures::{TextureManager, TRANSPARENT};
 
 const BLOCK_SIZE: usize = 100;
@@ -466,6 +470,39 @@ fn print_report(
     }
 }
 
+/// Dibuja el contador de FPS en la esquina superior izquierda, sobre un
+/// rectángulo oscuro para que se lea encima de cualquier pared.
+fn draw_fps(framebuffer: &mut Framebuffer, fps: u32) {
+    let text = format!("FPS: {}", fps);
+
+    let scale = 4;
+    let margin = 10;
+    let padding = 6;
+
+    let width = text_width(&text, scale) + padding * 2;
+    let height = text_height(scale) + padding * 2;
+
+    fill_rect(framebuffer, margin, margin, width, height, 0x111111);
+
+    // Verde si va bien, amarillo si se acerca al mínimo, rojo si está debajo.
+    let color = if fps >= 30 {
+        0x00FF66
+    } else if fps >= 15 {
+        0xFFDD00
+    } else {
+        0xFF3333
+    };
+
+    draw_text(
+        framebuffer,
+        margin + padding,
+        margin + padding,
+        &text,
+        scale,
+        color,
+    );
+}
+
 fn main() {
     let window_width = 1300;
     let window_height = 900;
@@ -499,6 +536,7 @@ fn main() {
     let mut textured = true;
     let mut title_dirty = true;
     let mut frame: u64 = 0;
+    let mut fps_counter = FpsCounter::new();
 
     println!(
         "altura = (BLOCK_SIZE / distancia) * distancia_al_plano_de_proyección\n\
@@ -590,6 +628,11 @@ fn main() {
         } else {
             render_2d(&mut framebuffer, &maze, &player, &enemies);
         }
+
+        // El contador se dibuja al final para que quede encima de todo lo
+        // demás, y se avisa que se terminó un frame más.
+        fps_counter.tick();
+        draw_fps(&mut framebuffer, fps_counter.fps());
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
