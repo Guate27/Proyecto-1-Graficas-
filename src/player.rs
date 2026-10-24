@@ -1,8 +1,9 @@
-use minifb::{Key, Window};
+use minifb::{Key, MouseMode, Window};   
 use nalgebra_glm::Vec2;
 use std::f32::consts::PI;
 
 use crate::maze::Maze;
+
 
 pub struct Player {
     pub pos: Vec2,
@@ -12,6 +13,7 @@ pub struct Player {
 const MOVE_SPEED: f32 = 10.0;
 const ROTATION_SPEED: f32 = PI / 150.0;
 const PLAYER_RADIUS: f32 = 15.0;
+const MOUSE_SENSITIVITY: f32 = -0.005; 
 
 fn is_walkable(maze: &Maze, x: f32, y: f32, block_size: usize) -> bool {
     if !(x >= 0.0) || !(y >= 0.0) {
@@ -67,4 +69,23 @@ pub fn process_events(window: &Window, player: &mut Player, maze: &Maze, block_s
     if can_stand(maze, player.pos.x, new_y, block_size) {
         player.pos.y = new_y;
     }
+}
+
+//Función que permite al jugador girar la vista con el mouse 
+pub fn process_mouse(window: &Window, player: &mut Player, last_mouse_x: &mut Option<f32>) {
+    //Posición actual del mouse en pixeles
+    let Some((mouse_x, _mouse_y)) = window.get_mouse_pos(MouseMode::Pass) else {
+        *last_mouse_x = None;
+        return;
+    };
+
+    if let Some(previous_x) = *last_mouse_x {
+           // Cálculo del cambio de la posción de la vista del jugador (cálculo del giro de la vista del jugador)
+        let delta_x = mouse_x - previous_x;
+
+        //Aplicación del cambio de la posción de la vista del jugador (giro de la vista del jugador)
+        player.a += delta_x * MOUSE_SENSITIVITY;
+    }
+
+    *last_mouse_x = Some(mouse_x);
 }

@@ -16,9 +16,9 @@ use crate::enemy::Enemy;
 use crate::fps::FpsCounter;
 use crate::framebuffer::Framebuffer;
 use crate::maze::{load_maze, Maze};
-use crate::player::{process_events, Player};
 use crate::text::{draw_text, fill_rect, text_height, text_width};
 use crate::textures::{TextureManager, TRANSPARENT};
+use crate::player::{process_events, process_mouse, Player};
 
 const BLOCK_SIZE: usize = 100;
 const NUM_RAYS_2D: usize = 5;
@@ -537,6 +537,7 @@ fn main() {
     let mut title_dirty = true;
     let mut frame: u64 = 0;
     let mut fps_counter = FpsCounter::new();
+    let mut last_mouse_x: Option<f32> = None;
 
     println!(
         "altura = (BLOCK_SIZE / distancia) * distancia_al_plano_de_proyección\n\
@@ -550,6 +551,7 @@ fn main() {
         frame += 1;
 
         process_events(&window, &mut player, &maze, BLOCK_SIZE);
+        process_mouse(&window, &mut player, &mut last_mouse_x);
 
         if window.is_key_pressed(Key::M, KeyRepeat::No) {
             mode_3d = !mode_3d;
