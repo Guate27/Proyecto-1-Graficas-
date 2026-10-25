@@ -13,15 +13,15 @@ pub struct Player {
 const MOVE_SPEED: f32 = 10.0;
 const ROTATION_SPEED: f32 = PI / 150.0;
 const PLAYER_RADIUS: f32 = 15.0;
-const MOUSE_SENSITIVITY: f32 = -0.005; 
+const MOUSE_SENSITIVITY: f32 = 0.005; 
 
 fn is_walkable(maze: &Maze, x: f32, y: f32, block_size: usize) -> bool {
     if !(x >= 0.0) || !(y >= 0.0) {
         return false;
     }
-
-    let i = x as usize / block_size;
-    let j = y as usize / block_size;
+    //Pixel a celda
+    let i = x as usize / block_size; // columna 
+    let j = y as usize / block_size; //fila
 
     match maze.get(j).and_then(|row| row.get(i)) {
         Some(&cell) => cell == ' ' || cell == 'g' || cell == 'G',

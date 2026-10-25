@@ -31,6 +31,11 @@ const FLOOR_COLOR: u32 = 0x5A5A5A;
 /// tamaño en pantalla se dispara y el enemigo tapa la vista entera.
 const MIN_SPRITE_DISTANCE: f32 = 20.0;
 
+/// Cuántos pixeles mide cada celda del laberinto dentro del minimapa.
+const MINIMAP_CELL: usize = 8; 
+/// Separación entre el minimapa y el borde de la ventana.
+const MINIMAP_MARGIN: usize = 10;
+
 fn cell_color(cell: char) -> u32 {
     match cell {
         '+' => 0x00AAFF,
@@ -470,8 +475,7 @@ fn print_report(
     }
 }
 
-/// Dibuja el contador de FPS en la esquina superior izquierda, sobre un
-/// rectángulo oscuro para que se lea encima de cualquier pared.
+/// Dibuja el contador de FPS 
 fn draw_fps(framebuffer: &mut Framebuffer, fps: u32) {
     let text = format!("FPS: {}", fps);
 
@@ -501,6 +505,74 @@ fn draw_fps(framebuffer: &mut Framebuffer, fps: u32) {
         scale,
         color,
     );
+}
+
+// Dibuja el laberinto completo en miniatura en la esquina superior derecha: permite saber la posición actual del jugador, hacia donde mira el jugador la posición actual de los enemigos, la localización en la meta 
+fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, enemies: &[Enemy]) {
+    let rows = maze.len();
+    let cols = maze.iter().map(|line| line.len()).max().unwrap_or(0);
+
+    let map_width = cols * MINIMAP_CELL;
+    let map_height = rows * MINIMAP_CELL;
+
+    // Si el tamaño del minimapa es mayor al tamaño de la ventana no se dibuja el minimapas 
+    if map_width + MINIMAP_MARGIN * 2 > framebuffer.width
+        || map_height + MINIMAP_MARGIN * 2 > framebuffer.height
+    {
+        return;
+    }
+
+    // Posición donde se empieza a dibujar el minimapa
+    let origin_x = framebuffer.width - map_width - MINIMAP_MARGIN;
+    let origin_y = MINIMAP_MARGIN;
+
+    // Un marco claro y un fondo oscuro para que se distinga el minimapa en la vista 3D
+    fill_rect(framebuffer, origin_x - 2, origin_y - 2, map_width + 4, map_height + 4, 0xDDDDDD); // Marco claro 
+    fill_rect(framebuffer, origin_x, origin_y, map_width, map_height, 0x1A1A2E); // Fondo oscuro
+
+    // Las paredes: cada celda que no es piso se pinta como un cuadrito del mismo color que usa la vista 2D.
+    for (row, line) in maze.iter().enumerate() {
+        for (col, &cell) in line.iter().enumerate() {
+            if cell == ' ' {
+                continue;
+            }
+
+            fill_rect(
+                framebuffer,
+                origin_x + col * MINIMAP_CELL,
+                origin_y + row * MINIMAP_CELL,
+                MINIMAP_CELL,
+                MINIMAP_CELL,
+                cell_color(cell),
+            );
+        }
+    }
+
+    // Para pasar de una posición del mundo a una del minimapa se multiplica por esta escala: 8 / 100 = 0.08
+    let scale = MINIMAP_CELL as f32 / BLOCK_SIZE as f32;
+
+    for enemy in enemies {
+        let ex = origin_x as f32 + enemy.pos.x * scale;
+        let ey = origin_y as f32 + enemy.pos.y * scale;
+
+        fill_rect(framebuffer, ex as usize - 1, ey as usize - 1, 3, 3, 0xFF00FF);
+    }
+
+    let px = origin_x as f32 + player.pos.x * scale;
+    let py = origin_y as f32 + player.pos.y * scale;
+
+    // Una línea corta hacia donde mira el jugador
+    framebuffer.set_current_color(0xFFFFFF);
+
+    for step in 0..12 {
+        let lx = px + step as f32 * player.a.cos();
+        let ly = py + step as f32 * player.a.sin();
+
+        framebuffer.point(lx as usize, ly as usize);
+    }
+
+    // Representación del jugador en el minimapa como cuadrado
+    fill_rect(framebuffer, px as usize - 2, py as usize - 2, 4, 4, 0xFFFF00);
 }
 
 fn main() {
@@ -627,6 +699,8 @@ fn main() {
                 &depth,
                 fisheye_correction,
             );
+             // En la vista 3D se agrega el minimapa en la esquina
+            draw_minimap(&mut framebuffer, &maze, &player, &enemies);
         } else {
             render_2d(&mut framebuffer, &maze, &player, &enemies);
         }

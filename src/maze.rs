@@ -25,6 +25,7 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Vec<Enemy>
         let mut cells: Vec<char> = Vec::new();
 
         for (col, character) in line.chars().enumerate() {
+            // Centro de cada celda del mapa
             let center_x = (col * block_size + block_size / 2) as f32;
             let center_y = (row * block_size + block_size / 2) as f32;
 
