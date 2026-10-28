@@ -71,7 +71,7 @@ pub fn process_events(window: &Window, player: &mut Player, maze: &Maze, block_s
     }
 }
 
-//Función que permite al jugador girar la vista con el mouse 
+//Función que permite al jugador girar horizontalmente la vista con el mouse 
 pub fn process_mouse(window: &Window, player: &mut Player, last_mouse_x: &mut Option<f32>) {
     //Posición actual del mouse en pixeles
     let Some((mouse_x, _mouse_y)) = window.get_mouse_pos(MouseMode::Pass) else {

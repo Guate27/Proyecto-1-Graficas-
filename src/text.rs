@@ -88,7 +88,7 @@ pub fn draw_text(
                 //
                 let mask = 1 << (GLYPH_WIDTH - 1 - col);
 
-                // Comparar cada digito de la  variable bits con el correspondiente de mask utlizando la operación AND, si ambos digitos que se están compaarando son 1 se pintan los pixeles 
+                // Verificar cada dígito de cada numero binario de 3 bits (1: pintar, 0:no repetir el ciclo)
                 if bits & mask == 0 {
                     continue;
                 }

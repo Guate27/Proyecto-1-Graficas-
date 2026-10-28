@@ -38,6 +38,9 @@ pub fn cast_ray(
         framebuffer.set_current_color(0xFFDDDD);
     }
 
+    //La columna de la celda en la que estaba el rayo en el paso anterior.
+    let mut previous_i = player.pos.x as usize / block_size;
+
     loop {
         let fx = player.pos.x + d * cos_a;
         let fy = player.pos.y + d * sin_a;
@@ -58,15 +61,13 @@ pub fn cast_ray(
         }
 
         if maze[j][i] != ' ' {
-            let (u, face) = hit_coordinate(fx, fy, i, j, block_size, cos_a, sin_a);
-
-            return Intersect {
-                distance: d,
-                impact: maze[j][i],
-                u,
-                face,
+            let face = if i != previous_i {
+                Face::Vertical
+            } else {
+                Face::Horizontal
             };
-        }
+
+            let u = hit_coordinate(fx, fy, i, j, block_size, cos_a, sin_a, face);
 
         if draw_line {
             framebuffer.point(x, y);

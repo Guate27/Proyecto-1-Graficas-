@@ -4,6 +4,7 @@ mod fps;
 mod framebuffer;
 mod maze;
 mod player;
+mod shading;
 mod text;
 mod textures;
 
@@ -16,23 +17,25 @@ use crate::enemy::Enemy;
 use crate::fps::FpsCounter;
 use crate::framebuffer::Framebuffer;
 use crate::maze::{load_maze, Maze};
+use crate::player::{process_events, process_mouse, Player};
+use crate::shading::{distance_brightness, mix, shade, HORIZONTAL_FACE_BRIGHTNESS};
 use crate::text::{draw_text, fill_rect, text_height, text_width};
 use crate::textures::{TextureManager, TRANSPARENT};
-use crate::player::{process_events, process_mouse, Player};
 
 const BLOCK_SIZE: usize = 100;
 const NUM_RAYS_2D: usize = 5;
 const FOV: f32 = PI / 3.0;
 const REPORT_EVERY: u64 = 60;
 const REPORT_COLUMNS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
-const SKY_COLOR: u32 = 0x87CEEB;
-const FLOOR_COLOR: u32 = 0x5A5A5A;
+/// Colores del techo y del piso: A cada colot se le aplica un degradado. Cerca del jugador el techo y el piso es más claro, y a medida que se va alejando el piso y el techo en el campo de visión del jugador se va oscureciendo (la
+const CEILING_NEAR: u32 = 0x3A3550;
+const FLOOR_NEAR: u32 = 0x4A4856;
+const HORIZON_COLOR: u32 = 0x0E0D16;
 /// Distancia mínima a la que se dibuja un sprite. Más cerca que esto el
 /// tamaño en pantalla se dispara y el enemigo tapa la vista entera.
 const MIN_SPRITE_DISTANCE: f32 = 20.0;
-
 /// Cuántos pixeles mide cada celda del laberinto dentro del minimapa.
-const MINIMAP_CELL: usize = 8; 
+const MINIMAP_CELL: usize = 8;
 /// Separación entre el minimapa y el borde de la ventana.
 const MINIMAP_MARGIN: usize = 10;
 
@@ -115,11 +118,16 @@ fn render_world(
     let plane_distance = projection_plane_distance(framebuffer.width);
 
     for y in 0..framebuffer.height {
-        framebuffer.set_current_color(if (y as f32) < half_height {
-            SKY_COLOR
+        // Qué tan lejos está cada fila de pixéles de la ventana del centro de la ventana: 1.0 en el borde de arriba o de abajo de la pantalla, 0.0 justo en la mitad.
+        let closeness = ((y as f32 - half_height) / half_height).abs();
+
+        let near_color = if (y as f32) < half_height {
+            CEILING_NEAR
         } else {
-            FLOOR_COLOR
-        });
+            FLOOR_NEAR
+        };
+
+        framebuffer.set_current_color(mix(HORIZON_COLOR, near_color, closeness));
 
         for x in 0..framebuffer.width {
             framebuffer.point(x, y);
@@ -151,6 +159,13 @@ fn render_world(
 
         let stake_height = (BLOCK_SIZE as f32 / distance) * plane_distance;
 
+        // El brillo de una pared, piso o techo: se oscurece con la distancia
+        let mut brightness = distance_brightness(distance);
+
+        if intersect.face == Face::Horizontal {
+            brightness *= HORIZONTAL_FACE_BRIGHTNESS;
+        }
+
         // Los extremos sin recortar son los que definen la coordenada
         // vertical de la textura: si se midiera contra el pedazo visible, una
         // pared cercana mostraría la textura completa comprimida en la
@@ -161,7 +176,8 @@ fn render_world(
         let last = (half_height + stake_height / 2.0).min(framebuffer.height as f32) as usize;
 
         if !textured {
-            framebuffer.set_current_color(cell_color(intersect.impact));
+            // Aplicación del brillo de las paredes
+            framebuffer.set_current_color(shade(cell_color(intersect.impact), brightness));
 
             for y in first..last {
                 framebuffer.point(i, y);
@@ -176,7 +192,9 @@ fn render_world(
         for y in first..last {
             let v = (y as f32 - stake_top) / stake_height;
 
-            framebuffer.set_current_color(texture.sample(intersect.u, v));
+            let color = texture.sample(intersect.u, v);
+
+            framebuffer.set_current_color(shade(color, brightness));
             framebuffer.point(i, y);
         }
     }
@@ -308,6 +326,9 @@ fn draw_sprite(
     // La textura se busca una vez por sprite, no una vez por píxel.
     let texture = texture_manager.get(enemy.texture_key);
 
+    // El sprite se oscurece con la distancia igual que las paredes, para que un enemigo lejano no brille en medio de la oscuridad.
+    let brightness = distance_brightness(projection.depth);
+
     for x in first_x..last_x {
         // Prueba de profundidad: si la pared de esta columna está más cerca
         // que el enemigo, el enemigo queda detrás de ella y no se dibuja.
@@ -326,7 +347,7 @@ fn draw_sprite(
                 continue;
             }
 
-            framebuffer.set_current_color(color);
+            framebuffer.set_current_color(shade(color, brightness));
             framebuffer.point(x, y);
         }
     }
@@ -475,7 +496,8 @@ fn print_report(
     }
 }
 
-/// Dibuja el contador de FPS 
+/// Dibuja el contador de FPS en la esquina superior izquierda, sobre un
+/// rectángulo oscuro para que se lea encima de cualquier pared.
 fn draw_fps(framebuffer: &mut Framebuffer, fps: u32) {
     let text = format!("FPS: {}", fps);
 
@@ -507,7 +529,11 @@ fn draw_fps(framebuffer: &mut Framebuffer, fps: u32) {
     );
 }
 
-// Dibuja el laberinto completo en miniatura en la esquina superior derecha: permite saber la posición actual del jugador, hacia donde mira el jugador la posición actual de los enemigos, la localización en la meta 
+/// Dibuja el laberinto en miniatura en la esquina superior derecha, con la
+/// posición del jugador, hacia dónde mira y los enemigos.
+///
+/// Es el mismo mapa que la vista 2D, pero "encogido": cada celda, que en el
+/// mundo mide BLOCK_SIZE (100) pixeles, aquí mide MINIMAP_CELL (8).
 fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, enemies: &[Enemy]) {
     let rows = maze.len();
     let cols = maze.iter().map(|line| line.len()).max().unwrap_or(0);
@@ -515,22 +541,25 @@ fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, ene
     let map_width = cols * MINIMAP_CELL;
     let map_height = rows * MINIMAP_CELL;
 
-    // Si el tamaño del minimapa es mayor al tamaño de la ventana no se dibuja el minimapas 
+    // Si la ventana fuera demasiado pequeña para el minimapa, mejor no
+    // dibujarlo que restar de más y provocar un error.
     if map_width + MINIMAP_MARGIN * 2 > framebuffer.width
         || map_height + MINIMAP_MARGIN * 2 > framebuffer.height
     {
         return;
     }
 
-    // Posición donde se empieza a dibujar el minimapa
+    // Esquina superior izquierda del minimapa: pegado a la derecha de la
+    // ventana, dejando el margen. La esquina izquierda ya la usan los FPS.
     let origin_x = framebuffer.width - map_width - MINIMAP_MARGIN;
     let origin_y = MINIMAP_MARGIN;
 
-    // Un marco claro y un fondo oscuro para que se distinga el minimapa en la vista 3D
-    fill_rect(framebuffer, origin_x - 2, origin_y - 2, map_width + 4, map_height + 4, 0xDDDDDD); // Marco claro 
-    fill_rect(framebuffer, origin_x, origin_y, map_width, map_height, 0x1A1A2E); // Fondo oscuro
+    // Un marco claro y un fondo oscuro para que se distinga de la vista 3D.
+    fill_rect(framebuffer, origin_x - 2, origin_y - 2, map_width + 4, map_height + 4, 0xDDDDDD);
+    fill_rect(framebuffer, origin_x, origin_y, map_width, map_height, 0x1A1A2E);
 
-    // Las paredes: cada celda que no es piso se pinta como un cuadrito del mismo color que usa la vista 2D.
+    // Las paredes: cada celda que no es piso se pinta como un cuadrito con
+    // el mismo color que usa la vista 2D.
     for (row, line) in maze.iter().enumerate() {
         for (col, &cell) in line.iter().enumerate() {
             if cell == ' ' {
@@ -548,7 +577,9 @@ fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, ene
         }
     }
 
-    // Para pasar de una posición del mundo a una del minimapa se multiplica por esta escala: 8 / 100 = 0.08
+    // Para pasar de una posición del mundo a una del minimapa se multiplica
+    // por esta escala: 8 / 100 = 0.08. Un punto a 150 px en el mundo queda a
+    // 12 px dentro del minimapa.
     let scale = MINIMAP_CELL as f32 / BLOCK_SIZE as f32;
 
     for enemy in enemies {
@@ -561,7 +592,8 @@ fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, ene
     let px = origin_x as f32 + player.pos.x * scale;
     let py = origin_y as f32 + player.pos.y * scale;
 
-    // Una línea corta hacia donde mira el jugador
+    // Una línea corta hacia donde mira el jugador, con la misma fórmula de
+    // cos y sin que se usa para caminar: se avanza un pixel a la vez.
     framebuffer.set_current_color(0xFFFFFF);
 
     for step in 0..12 {
@@ -571,7 +603,7 @@ fn draw_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, ene
         framebuffer.point(lx as usize, ly as usize);
     }
 
-    // Representación del jugador en el minimapa como cuadrado
+    // El jugador encima de todo, como un cuadrito amarillo de 4×4.
     fill_rect(framebuffer, px as usize - 2, py as usize - 2, 4, 4, 0xFFFF00);
 }
 
@@ -609,6 +641,8 @@ fn main() {
     let mut title_dirty = true;
     let mut frame: u64 = 0;
     let mut fps_counter = FpsCounter::new();
+    // Dónde estaba el mouse en el frame anterior; empieza vacío porque
+    // antes del primer frame no hay nada con qué comparar.
     let mut last_mouse_x: Option<f32> = None;
 
     println!(
@@ -699,7 +733,9 @@ fn main() {
                 &depth,
                 fisheye_correction,
             );
-             // En la vista 3D se agrega el minimapa en la esquina
+
+            // En la vista 3D se agrega el minimapa en la esquina; en la 2D no
+            // hace falta porque ya se está viendo el mapa completo.
             draw_minimap(&mut framebuffer, &maze, &player, &enemies);
         } else {
             render_2d(&mut framebuffer, &maze, &player, &enemies);
