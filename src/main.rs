@@ -1,3 +1,4 @@
+mod animation;
 mod caster;
 mod enemy;
 mod fps;
@@ -10,8 +11,9 @@ mod textures;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
 use std::f32::consts::PI;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use crate::animation::Animation;
 use crate::caster::{cast_ray, Face};
 use crate::enemy::Enemy;
 use crate::fps::FpsCounter;
@@ -34,6 +36,8 @@ const HORIZON_COLOR: u32 = 0x0E0D16;
 /// Distancia mínima a la que se dibuja un sprite. Más cerca que esto el
 /// tamaño en pantalla se dispara y el enemigo tapa la vista entera.
 const MIN_SPRITE_DISTANCE: f32 = 20.0;
+// Segundos que dura cada cuadro de la animación del dron
+const ENEMY_FRAME_DURATION: f32 = 0.12; // 0.12 s => unos 8 cuadros por segundo
 /// Cuántos pixeles mide cada celda del laberinto dentro del minimapa.
 const MINIMAP_CELL: usize = 8;
 /// Separación entre el minimapa y el borde de la ventana.
@@ -297,7 +301,8 @@ fn draw_sprite(
     framebuffer: &mut Framebuffer,
     player: &Player,
     enemy: &Enemy,
-    texture_manager: &TextureManager,
+    animation: &Animation,
+    time: f32,
     depth: &[f32],
     fisheye_correction: bool,
 ) {
@@ -323,8 +328,11 @@ fn draw_sprite(
 
     let last_y = last_y as usize;
 
-    // La textura se busca una vez por sprite, no una vez por píxel.
-    let texture = texture_manager.get(enemy.texture_key);
+    // Tiempo propio de cada dron: se le suma un adelanto según su posición para que no se muevan todos sincronizados
+    let enemy_time = time + (enemy.pos.x + enemy.pos.y) * 0.001;
+
+    // Cuadro de la animación que toca mostrar (se busca una vez por sprite, no una vez por píxel)
+    let texture = animation.frame_at(enemy_time);
 
     // El sprite se oscurece con la distancia igual que las paredes, para que un enemigo lejano no brille en medio de la oscuridad.
     let brightness = distance_brightness(projection.depth);
@@ -357,7 +365,8 @@ fn render_enemies(
     framebuffer: &mut Framebuffer,
     player: &Player,
     enemies: &[Enemy],
-    texture_manager: &TextureManager,
+    animation: &Animation,
+    time: f32,
     depth: &[f32],
     fisheye_correction: bool,
 ) {
@@ -378,7 +387,8 @@ fn render_enemies(
             framebuffer,
             player,
             enemy,
-            texture_manager,
+            animation,
+            time,
             depth,
             fisheye_correction,
         );
@@ -634,6 +644,20 @@ fn main() {
     // Las texturas se leen del disco una sola vez, antes del ciclo de render.
     let texture_manager = TextureManager::new();
 
+    // Los 4 cuadros del dron, en el orden en que se van a mostrar (se cargan una sola vez)
+    let enemy_animation = Animation::load(
+        &[
+            "assets/drone_0.png",
+            "assets/drone_1.png",
+            "assets/drone_2.png",
+            "assets/drone_3.png",
+        ],
+        ENEMY_FRAME_DURATION,
+    );
+
+    // Reloj de las animaciones: momento en que empezó el juego
+    let start_time = Instant::now();
+
     let mut mode_3d = true;
     let mut fisheye_correction = true;
     let mut report_enabled = true;
@@ -712,6 +736,9 @@ fn main() {
             break;
         }
 
+        // Segundos transcurridos desde que empezó el juego
+        let time = start_time.elapsed().as_secs_f32();
+
         framebuffer.clear();
 
         if mode_3d {
@@ -729,7 +756,8 @@ fn main() {
                 &mut framebuffer,
                 &player,
                 &enemies,
-                &texture_manager,
+                &enemy_animation,
+                time,
                 &depth,
                 fisheye_correction,
             );

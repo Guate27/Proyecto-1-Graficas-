@@ -88,7 +88,7 @@ pub fn draw_text(
                 //
                 let mask = 1 << (GLYPH_WIDTH - 1 - col);
 
-                // Verificar cada dígito de cada numero binario de 3 bits (1: pintar, 0:no repetir el ciclo)
+                // Verificar cada dígito de cada numero binario de 3 bits (1: pintar, 0:no y repetir el ciclo)
                 if bits & mask == 0 {
                     continue;
                 }

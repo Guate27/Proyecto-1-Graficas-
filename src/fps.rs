@@ -25,7 +25,7 @@ impl FpsCounter {
     // función que hace el conteo de fps.
     pub fn tick(&mut self) {
         self.frames += 1;
-        // Tiempo trancurrido desde que se creó la ventana
+        // Tiempo trancurrido desde que se empezó la medición 
         let elapsed = self.window_start.elapsed().as_secs_f32();
 
         // Cálculo de los FPS en el intervalo de tiempo establecido

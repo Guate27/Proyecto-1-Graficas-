@@ -19,7 +19,7 @@ pub struct Texture {
 
 
 impl Texture {
-    fn load(path: &str) -> Texture {
+    pub fn load(path: &str) -> Texture {
         let image = image::open(path)
             .unwrap_or_else(|e| panic!("no se pudo abrir la textura {}: {}", path, e))
             .to_rgb8();
@@ -63,7 +63,6 @@ impl TextureManager {
             ('-', "assets/wall2.png"),
             ('|', "assets/wall1.png"),
             ('g', "assets/wall5.png"),
-            ('e', "assets/sprite1.png"),
         ];
 
         let mut textures = HashMap::new();
@@ -80,9 +79,8 @@ impl TextureManager {
 
     /// Busca la textura de un carácter.
     ///
-    /// La búsqueda se hace **una vez por pared o por sprite**, nunca por
-    /// píxel: cada estaca y cada enemigo pide aquí su textura y después
-    /// muestrea cientos de miles de veces sobre la referencia devuelta.
+    /// La búsqueda se hace **una vez por pared o por sprite, nunca por
+    /// píxel: cada  pared y cada enemigo pide aquí su textura y después
     pub fn get(&self, cell: char) -> &Texture {
         self.textures.get(&cell).unwrap_or(&self.fallback)
     }

@@ -35,10 +35,10 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Vec<Enemy>
 
                     cells.push(' ');
                 }
-                // Los enemigos no son parte de la geometría: marcan una
+                // Los enemigos no tienen colisión: marcan una
                 // posición y dejan la celda como piso transitable.
                 'e' => {
-                    enemies.push(Enemy::new(center_x, center_y, 'e'));
+                    enemies.push(Enemy::new(center_x, center_y));
 
                     cells.push(' ');
                 }

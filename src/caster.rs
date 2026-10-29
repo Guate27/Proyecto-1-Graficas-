@@ -69,21 +69,28 @@ pub fn cast_ray(
 
             let u = hit_coordinate(fx, fy, i, j, block_size, cos_a, sin_a, face);
 
+            return Intersect {
+                distance: d,
+                impact: maze[j][i],
+                u,
+                face,
+            };
+        }
+
         if draw_line {
             framebuffer.point(x, y);
         }
+
+        // Se actualiza la columna anterior antes de avanzar al siguiente paso
+        previous_i = i;
 
         d += 1.0;
     }
 }
 
-/// Traduce el punto de impacto a una coordenada horizontal de textura.
-///
-/// El rayo avanza de un píxel a la vez, así que al detectarse el choque el
-/// punto ya está *dentro* de la celda, pero apenas cruzando una de sus caras:
-/// una de las dos coordenadas locales queda pegada a la orilla y la otra
-/// puede valer cualquier cosa. La que está pegada a la orilla dice qué cara
-/// se cruzó; la otra es la que recorre la pared y sirve de coordenada.
+// Calcula la coordenada horizontal de la textura (u) en el punto de impacto.
+// La cara ya se decidió en cast_ray con previous_i: en una cara vertical la pared
+// corre a lo largo del eje y, y en una horizontal a lo largo del eje x.
 fn hit_coordinate(
     fx: f32,
     fy: f32,
@@ -92,27 +99,24 @@ fn hit_coordinate(
     block_size: usize,
     cos_a: f32,
     sin_a: f32,
-) -> (f32, Face) {
+    face: Face,
+) -> f32 {
     let block = block_size as f32;
 
+    // Posición del impacto dentro de la celda (de 0 a 100)
     let hit_x = fx - (i * block_size) as f32;
     let hit_y = fy - (j * block_size) as f32;
 
-    let edge_x = hit_x.min(block - hit_x);
-    let edge_y = hit_y.min(block - hit_y);
-
-    if edge_x < edge_y {
-        // Se cruzó una cara vertical: la pared corre a lo largo del eje y.
-        // Mirando hacia el este (cos > 0) la derecha del jugador es el sur,
-        // así que la textura avanza con y; mirando al oeste, al revés.
-        let u = hit_y / block;
-        let u = if cos_a > 0.0 { u } else { 1.0 - u };
-        (u, Face::Vertical)
-    } else {
-        // Se cruzó una cara horizontal: la pared corre a lo largo del eje x.
-        // Mirando hacia el sur (sin > 0) la derecha del jugador es el oeste.
-        let u = hit_x / block;
-        let u = if sin_a > 0.0 { 1.0 - u } else { u };
-        (u, Face::Horizontal)
+    match face {
+        // Mirando hacia el este (cos > 0) la textura avanza con y; mirando al oeste, al revés.
+        Face::Vertical => {
+            let u = hit_y / block;
+            if cos_a > 0.0 { u } else { 1.0 - u }
+        }
+        // Mirando hacia el sur (sin > 0) la textura avanza al revés de x.
+        Face::Horizontal => {
+            let u = hit_x / block;
+            if sin_a > 0.0 { 1.0 - u } else { u }
+        }
     }
 }

@@ -7,7 +7,7 @@ const FOG_END: f32 = 1200.0; // PARED A 1200 PIXELES DEL JUGADOR => PARED QUE ES
 //  BRILLO MÍNIMO: 
 const MIN_BRIGHTNESS: f32 = 0.15; //15% DEL BRILLO
 
-// Las caras horizontales del mapa (CIELO Y SUELO) se pintan un poco más oscuras que las verticales. 
+// Las paredes se pintan un poco más oscuras que el techo y el suelo. 
 pub const HORIZONTAL_FACE_BRIGHTNESS: f32 = 0.75;
 
 // Separa cada par de dígitos del código hexadecimal de un color del modelo RGB 
